@@ -7,19 +7,13 @@ Proyek Responsi Pemrograman Aplikasi Mobile (Flutter) yang mengimplementasikan a
 ## 📌 Fitur Utama
 
 1. **Home / Weather Screen**:
-   - Menampilkan nama kota, provinsi/administrasi, dan negara yang sedang dipilih.
-   - Menampilkan kondisi cuaca terkini (dilengkapi dengan ikon cuaca adaptif dan deskripsi cuaca dalam Bahasa Indonesia berdasarkan kode WMO).
-   - Menampilkan suhu saat ini (`current.temperature_2m`).
-   - Menampilkan metrik cuaca tambahan:
-     - **Kelembapan udara** (`current.relative_humidity_2m`)
-     - **Kecepatan angin** (`current.wind_speed_10m`)
-     - **Peluang hujan** (`daily.precipitation_probability_max`)
-     - **Suhu yang dirasakan** (`current.apparent_temperature`)
-     - **Curah hujan** (`current.precipitation`)
-     - **Rentang suhu harian** (Min & Max harian)
-   - Menampilkan perkiraan cuaca harian (7 hari ke depan) secara responsif.
-   - Fitur *Pull-to-Refresh* untuk memperbarui data cuaca langsung dari API.
-   - Tombol toggle untuk menandai/menghapus lokasi favorit langsung dari layar utama.
+   - Latar belakang atmosferik adaptif (*sunny*, *rainy*, *night*) yang memudar halus ke kartu *glassmorphism* tembus pandang.
+   - Menampilkan nama kota, provinsi/administrasi, suhu raksasa, kondisi cuaca terkini, suhu maks/min (`↑ / ↓`), dan suhu terasa (*Terasa seperti*).
+   - **Prakiraan Per Jam & Grafik Suhu (24–48 Jam)**: Grafik kurva suhu interaktif (`CustomPainter`), ikon cuaca per jam, persentase peluang hujan, serta penanda waktu **Terbit** & **Senja** otomatis dari API.
+   - **Grafik Curah Hujan Per Jam (`mm`)**: Grafik area/garis intensitas curah hujan per jam dengan garis grid.
+   - **Prakiraan Harian 7 Hari**: Dilengkapi bar rentang suhu (*temperature range bar*) gradasi warna, peluang hujan, dan ikon WMO.
+   - **Informasi Cuaca Tambahan**: Kelembapan udara, kecepatan angin, peluang hujan, curah hujan, suhu terasa, dan kode WMO.
+   - Bilah navigasi mengambang (*floating bottom bar*) dengan akses cepat ke **Daftar Favorit/Riwayat** (kiri) dan **Pencarian Kota** (kanan), serta *Pull-to-Refresh*.
 
 2. **Search / Location Screen**:
    - Kolom pencarian interaktif untuk mencari nama kota di seluruh dunia via Open-Meteo Geocoding API.
@@ -146,14 +140,20 @@ Aplikasi menggunakan library **`shared_preferences`** untuk menyimpan data secar
 ## 📁 Struktur Direktori Proyek
 
 ```
+assets/images/
+├── hero_sunny.jpg              # Latar belakang atmosferik cuaca cerah
+├── hero_rainy.jpg              # Latar belakang atmosferik hujan/mendung
+└── hero_night.jpg              # Latar belakang atmosferik malam hari
+
 lib/
 ├── constants/
 │   ├── app_colors.dart         # Palet warna & gradien latar belakang cuaca
 │   ├── app_theme.dart          # Konfigurasi ThemeData Material 3 & tipografi
-│   └── weather_codes.dart      # Pemetaan kode cuaca WMO (deskripsi, ikon, gradien)
+│   └── weather_codes.dart      # Pemetaan kode cuaca WMO (deskripsi, ikon, aset latar)
 ├── models/
 │   ├── current_weather.dart    # Model data cuaca terkini
-│   ├── daily_forecast.dart     # Model perkiraan cuaca harian
+│   ├── daily_forecast.dart     # Model perkiraan cuaca harian (+ sunrise/sunset)
+│   ├── hourly_forecast.dart    # Model perkiraan cuaca per jam (suhu, hujan, mm)
 │   ├── location_model.dart     # Model data lokasi / kota
 │   └── weather_data.dart       # Model agregator cuaca lengkap
 ├── services/
@@ -164,13 +164,16 @@ lib/
 │   └── search_viewmodel.dart   # ViewModel untuk Layar Pencarian & Favorit
 ├── views/
 │   ├── screens/
-│   │   ├── home_screen.dart    # Screen 1: Home / Weather Screen
+│   │   ├── home_screen.dart    # Screen 1: Home / Weather Screen (Glassmorphism)
 │   │   └── search_screen.dart  # Screen 2: Search & Favorites Screen
 │   └── widgets/
-│       ├── daily_forecast_card.dart  # Widget kartu perkiraan cuaca per hari
-│       ├── weather_stat_chip.dart    # Widget chip metrik cuaca (kelembapan, angin, dll.)
-│       ├── error_state_view.dart     # Tampilan pesan error dengan tombol retry
-│       └── empty_state_view.dart     # Tampilan placeholder data kosong
+│       ├── glass_card.dart               # Komponen kartu frosted glassmorphism
+│       ├── hourly_forecast_card.dart     # Grafik kurva suhu per jam + penanda Senja/Terbit
+│       ├── hourly_precipitation_card.dart# Grafik area curah hujan (mm) per jam
+│       ├── daily_forecast_card.dart      # Kartu cuaca harian dengan range bar suhu
+│       ├── weather_stat_chip.dart        # Widget chip metrik cuaca (kelembapan, angin, dll.)
+│       ├── error_state_view.dart         # Tampilan pesan error dengan tombol retry
+│       └── empty_state_view.dart         # Tampilan placeholder data kosong
 └── main.dart                   # Entry point aplikasi & inisialisasi MultiProvider
 ```
 

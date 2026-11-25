@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'glass_card.dart';
 
 class WeatherStatChip extends StatelessWidget {
   final IconData icon;
@@ -16,32 +17,22 @@ class WeatherStatChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return GlassCard(
+      borderRadius: 20,
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      decoration: BoxDecoration(
-        color: Colors.white.withAlpha(217),
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withAlpha(8),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: (iconColor ?? Theme.of(context).primaryColor).withAlpha(30),
+              color: Colors.white.withAlpha(28),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Icon(
               icon,
               size: 20,
-              color: iconColor ?? Theme.of(context).primaryColor,
+              color: iconColor ?? Colors.white,
             ),
           ),
           const SizedBox(width: 10),
@@ -55,7 +46,7 @@ class WeatherStatChip extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w500,
-                    color: Colors.grey.shade600,
+                    color: Colors.white.withAlpha(185),
                   ),
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -63,9 +54,9 @@ class WeatherStatChip extends StatelessWidget {
                 Text(
                   value,
                   style: const TextStyle(
-                    fontSize: 14,
+                    fontSize: 15,
                     fontWeight: FontWeight.w700,
-                    color: Color(0xFF0F172A),
+                    color: Colors.white,
                   ),
                   overflow: TextOverflow.ellipsis,
                 ),

@@ -1,9 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../constants/weather_codes.dart';
+import '../../models/weather_data.dart';
 import '../../viewmodels/weather_viewmodel.dart';
 import '../widgets/daily_forecast_card.dart';
 import '../widgets/error_state_view.dart';
+import '../widgets/glass_card.dart';
+import '../widgets/hourly_forecast_card.dart';
+import '../widgets/hourly_precipitation_card.dart';
 import '../widgets/weather_stat_chip.dart';
 import 'search_screen.dart';
 
@@ -23,111 +28,153 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
-  void _navigateToSearch() async {
+  Future<void> _navigateToSearch({required bool autofocusSearch}) async {
     await Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => const SearchScreen()),
+      MaterialPageRoute(
+        builder: (_) => SearchScreen(autofocusSearch: autofocusSearch),
+      ),
     );
     if (mounted) {
       context.read<WeatherViewModel>().updateFavoriteStatus();
     }
   }
 
+  bool _isNightTime(WeatherData? weather) {
+    if (weather == null) return false;
+    final currentDt = DateTime.tryParse(weather.current.time);
+    if (currentDt == null) return false;
+    return currentDt.hour >= 18 || currentDt.hour < 5;
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Consumer<WeatherViewModel>(
-      builder: (context, vm, child) {
-        final location = vm.currentLocation;
-        final weather = vm.weatherData;
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle.light,
+      child: Consumer<WeatherViewModel>(
+        builder: (context, vm, child) {
+          final weather = vm.weatherData;
+          final currentCode = weather?.current.weatherCode ?? 1;
+          final isNight = _isNightTime(weather);
+          final condition = WeatherCodes.getCondition(
+            currentCode,
+            isNight: isNight,
+          );
 
-        return Scaffold(
-          appBar: AppBar(
-            title: location != null
-                ? Column(
+          return Scaffold(
+            backgroundColor: condition.fadeBottomColor,
+            body: Stack(
+              children: [
+                // 1. Atmospheric Base Gradient
+                Container(
+                  decoration: BoxDecoration(gradient: condition.gradient),
+                ),
+
+                // 2. Scenic Hero Background Illustration fading smoothly into gradient
+                Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  height: 460,
+                  child: Stack(
+                    fit: StackFit.expand,
                     children: [
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(
-                            Icons.location_on_rounded,
-                            size: 18,
-                            color: Color(0xFF1E88E5),
+                      Image.asset(
+                        condition.assetPath,
+                        fit: BoxFit.cover,
+                        alignment: Alignment.topCenter,
+                      ),
+                      // Subtle top vignette for crisp white typography
+                      Container(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            stops: const [0.0, 0.35, 0.7, 1.0],
+                            colors: [
+                              Colors.black.withAlpha(45),
+                              Colors.transparent,
+                              condition.fadeBottomColor.withAlpha(90),
+                              condition.fadeBottomColor,
+                            ],
                           ),
-                          const SizedBox(width: 4),
-                          Text(
-                            location.name,
-                            style: const TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w700,
-                              color: Color(0xFF0F172A),
-                            ),
-                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                // 3. Main Content Body
+                SafeArea(
+                  bottom: false,
+                  child: _buildBody(vm, weather, condition),
+                ),
+
+                // 4. Floating Bottom Action Bar (List/Favorites left, Search right)
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  child: Container(
+                    padding: EdgeInsets.fromLTRB(
+                      20,
+                      18,
+                      20,
+                      MediaQuery.of(context).padding.bottom + 12,
+                    ),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          condition.fadeBottomColor.withAlpha(0),
+                          condition.fadeBottomColor.withAlpha(215),
+                          condition.fadeBottomColor,
                         ],
                       ),
-                      if (location.country != null && location.country!.isNotEmpty)
-                        Text(
-                          location.admin1 != null && location.admin1!.isNotEmpty
-                              ? '${location.admin1}, ${location.country}'
-                              : location.country!,
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w500,
-                            color: Colors.grey.shade600,
-                          ),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        _BottomActionIcon(
+                          icon: Icons.playlist_add_check_rounded,
+                          tooltip: 'Lokasi Favorit & Riwayat',
+                          onTap: () => _navigateToSearch(autofocusSearch: false),
                         ),
-                    ],
-                  )
-                : const Text('Cuaca Terkini'),
-            actions: [
-              if (location != null)
-                IconButton(
-                  tooltip: vm.isFavorite ? 'Hapus dari Favorit' : 'Simpan ke Favorit',
-                  icon: Icon(
-                    vm.isFavorite ? Icons.favorite_rounded : Icons.favorite_border_rounded,
-                    color: vm.isFavorite ? Colors.redAccent : Colors.grey.shade700,
+                        _BottomActionIcon(
+                          icon: Icons.search_rounded,
+                          tooltip: 'Cari Kota',
+                          onTap: () => _navigateToSearch(autofocusSearch: true),
+                        ),
+                      ],
+                    ),
                   ),
-                  onPressed: () {
-                    vm.toggleFavorite();
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(
-                          vm.isFavorite
-                              ? '${location.name} dihapus dari Favorit'
-                              : '${location.name} ditambahkan ke Favorit',
-                        ),
-                        duration: const Duration(seconds: 2),
-                        behavior: SnackBarBehavior.floating,
-                      ),
-                    );
-                  },
                 ),
-              IconButton(
-                tooltip: 'Cari Kota',
-                icon: const Icon(Icons.search_rounded),
-                onPressed: _navigateToSearch,
-              ),
-              const SizedBox(width: 4),
-            ],
-          ),
-          body: _buildBody(vm, weather),
-        );
-      },
+              ],
+            ),
+          );
+        },
+      ),
     );
   }
 
-  Widget _buildBody(WeatherViewModel vm, dynamic weather) {
+  Widget _buildBody(
+    WeatherViewModel vm,
+    WeatherData? weather,
+    WeatherCondition condition,
+  ) {
     if (vm.state == WeatherViewState.loading && weather == null) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const CircularProgressIndicator(),
+            const CircularProgressIndicator(color: Colors.white),
             const SizedBox(height: 16),
             Text(
               'Memuat data cuaca...',
               style: TextStyle(
-                color: Colors.grey.shade700,
-                fontSize: 14,
+                color: Colors.white.withAlpha(230),
+                fontSize: 15,
                 fontWeight: FontWeight.w500,
               ),
             ),
@@ -147,131 +194,282 @@ class _HomeScreenState extends State<HomeScreen> {
       return const SizedBox.shrink();
     }
 
+    final location = weather.location;
     final current = weather.current;
     final daily = weather.daily;
-    final condition = WeatherCodes.getCondition(current.weatherCode);
+    final upcomingHourly = weather.upcomingHours(maxHours: 48);
+
+    double weekMin = 100.0;
+    double weekMax = -100.0;
+    for (final d in daily) {
+      if (d.minTemperature < weekMin) weekMin = d.minTemperature;
+      if (d.maxTemperature > weekMax) weekMax = d.maxTemperature;
+    }
 
     return RefreshIndicator(
+      color: Colors.white,
+      backgroundColor: const Color(0xFF1E3A4C),
       onRefresh: () => vm.refreshWeather(),
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(
           parent: BouncingScrollPhysics(),
         ),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        padding: EdgeInsets.fromLTRB(
+          16,
+          12,
+          16,
+          MediaQuery.of(context).padding.bottom + 84,
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Hero Weather Card
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 20),
-              decoration: BoxDecoration(
-                gradient: condition.gradient,
-                borderRadius: BorderRadius.circular(24),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withAlpha(35),
-                    blurRadius: 18,
-                    offset: const Offset(0, 8),
-                  ),
-                ],
-              ),
-              child: Column(
-                children: [
-                  // Weather Icon and Condition description
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
+            // Top Location Row + Favorite Toggle
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                const Icon(
+                  Icons.location_on_outlined,
+                  color: Colors.white,
+                  size: 22,
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Icon(
-                        condition.icon,
-                        size: 32,
-                        color: Colors.white,
-                      ),
-                      const SizedBox(width: 10),
                       Text(
-                        condition.description,
+                        location.name,
                         style: const TextStyle(
                           color: Colors.white,
-                          fontSize: 18,
+                          fontSize: 22,
                           fontWeight: FontWeight.w600,
                           shadows: [
                             Shadow(
                               color: Colors.black26,
-                              blurRadius: 4,
+                              blurRadius: 6,
                               offset: Offset(0, 1),
                             ),
                           ],
                         ),
+                        overflow: TextOverflow.ellipsis,
                       ),
+                      if (location.country != null &&
+                          location.country!.isNotEmpty)
+                        Text(
+                          location.admin1 != null &&
+                                  location.admin1!.isNotEmpty &&
+                                  location.admin1 != location.name
+                              ? '${location.admin1}, ${location.country}'
+                              : location.country!,
+                          style: TextStyle(
+                            color: Colors.white.withAlpha(210),
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w500,
+                            shadows: const [
+                              Shadow(
+                                color: Colors.black26,
+                                blurRadius: 4,
+                                offset: Offset(0, 1),
+                              ),
+                            ],
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
                     ],
                   ),
-                  const SizedBox(height: 12),
-
-                  // Current Temperature
-                  Text(
-                    '${current.temperature.round()}°C',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 68,
-                      fontWeight: FontWeight.w200,
-                      letterSpacing: -2,
-                      shadows: [
-                        Shadow(
-                          color: Colors.black26,
-                          blurRadius: 6,
-                          offset: Offset(0, 2),
+                ),
+                IconButton(
+                  tooltip: vm.isFavorite
+                      ? 'Hapus dari Favorit'
+                      : 'Simpan ke Favorit',
+                  icon: Icon(
+                    vm.isFavorite
+                        ? Icons.favorite_rounded
+                        : Icons.favorite_border_rounded,
+                    color: vm.isFavorite ? const Color(0xFFFF6B6B) : Colors.white,
+                    size: 24,
+                  ),
+                  onPressed: () {
+                    final wasFav = vm.isFavorite;
+                    vm.toggleFavorite();
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          wasFav
+                              ? '${location.name} dihapus dari Favorit'
+                              : '${location.name} ditambahkan ke Favorit',
                         ),
-                      ],
-                    ),
-                  ),
-
-                  // Apparent Temperature (Suhu yang dirasakan)
-                  Container(
-                    margin: const EdgeInsets.only(top: 4),
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withAlpha(50),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text(
-                      'Terasa seperti ${current.apparentTemperature.round()}°C',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w500,
+                        duration: const Duration(seconds: 2),
+                        behavior: SnackBarBehavior.floating,
                       ),
-                    ),
-                  ),
+                    );
+                  },
+                ),
+              ],
+            ),
 
-                  if (daily.isNotEmpty) ...[
-                    const SizedBox(height: 12),
-                    Text(
-                      'Maks: ${daily.first.maxTemperature.round()}°C  •  Min: ${daily.first.minTemperature.round()}°C',
-                      style: const TextStyle(
-                        color: Colors.white70,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ],
+            const SizedBox(height: 10),
+
+            // Giant Hero Temperature
+            Text(
+              '${current.temperature.round()}°',
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 80,
+                fontWeight: FontWeight.w300,
+                height: 1.0,
+                letterSpacing: -2,
+                shadows: [
+                  Shadow(
+                    color: Colors.black26,
+                    blurRadius: 10,
+                    offset: Offset(0, 2),
+                  ),
                 ],
               ),
             ),
 
-            const SizedBox(height: 20),
+            const SizedBox(height: 6),
 
-            // Additional Information Section (Info Tambahan)
-            const Text(
-              'Informasi Cuaca Tambahan',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
-                color: Color(0xFF0F172A),
+            // Weather Condition Description
+            Text(
+              condition.description,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 19,
+                fontWeight: FontWeight.w500,
+                shadows: [
+                  Shadow(
+                    color: Colors.black38,
+                    blurRadius: 8,
+                    offset: Offset(0, 1),
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: 12),
 
-            // 2x3 Grid of Weather Metrics
+            const SizedBox(height: 44),
+
+            // Daily Min/Max & Apparent Temperature (Terasa seperti)
+            if (daily.isNotEmpty)
+              Text(
+                '↑ ${daily.first.maxTemperature.round()}° / ↓ ${daily.first.minTemperature.round()}°',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 14.5,
+                  fontWeight: FontWeight.w500,
+                  shadows: [
+                    Shadow(
+                      color: Colors.black38,
+                      blurRadius: 6,
+                      offset: Offset(0, 1),
+                    ),
+                  ],
+                ),
+              ),
+            const SizedBox(height: 2),
+            Text(
+              'Terasa seperti ${current.apparentTemperature.round()}°',
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 14.5,
+                fontWeight: FontWeight.w500,
+                shadows: [
+                  Shadow(
+                    color: Colors.black38,
+                    blurRadius: 6,
+                    offset: Offset(0, 1),
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 16),
+
+            // Card 1: Hourly Forecast + Temperature Line Curve + Senja/Terbit
+            if (upcomingHourly.isNotEmpty) ...[
+              HourlyForecastCard(
+                hourly: upcomingHourly,
+                daily: daily,
+                currentDescription: condition.description,
+              ),
+              const SizedBox(height: 14),
+            ],
+
+            // Card 2: Hourly Precipitation mm Area Chart
+            if (upcomingHourly.isNotEmpty) ...[
+              SizedBox(
+                height: 185,
+                child: HourlyPrecipitationCard(hourly: upcomingHourly),
+              ),
+              const SizedBox(height: 14),
+            ],
+
+            // Card 3: 7-Day Forecast Glass Card
+            if (daily.isNotEmpty) ...[
+              GlassCard(
+                padding: const EdgeInsets.fromLTRB(18, 16, 18, 12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.calendar_today_rounded,
+                              size: 16,
+                              color: Colors.white.withAlpha(200),
+                            ),
+                            const SizedBox(width: 8),
+                            const Text(
+                              'Perkiraan Beberapa Hari ke Depan',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 14.5,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                        Text(
+                          '${daily.length} Hari',
+                          style: TextStyle(
+                            color: Colors.white.withAlpha(180),
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Divider(color: Colors.white.withAlpha(30), height: 1),
+                    const SizedBox(height: 4),
+                    ListView.separated(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: daily.length,
+                      separatorBuilder: (_, _) => Divider(
+                        color: Colors.white.withAlpha(20),
+                        height: 1,
+                      ),
+                      itemBuilder: (context, index) {
+                        return DailyForecastCard(
+                          forecast: daily[index],
+                          isToday: index == 0,
+                          weekMinTemp: weekMin,
+                          weekMaxTemp: weekMax,
+                        );
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 14),
+            ],
+
+            // Card 4: Additional Weather Metrics Grid
             GridView.count(
               crossAxisCount: 2,
               shrinkWrap: true,
@@ -284,13 +482,13 @@ class _HomeScreenState extends State<HomeScreen> {
                   icon: Icons.water_drop_rounded,
                   label: 'Kelembapan',
                   value: '${current.relativeHumidity}%',
-                  iconColor: Colors.blue.shade600,
+                  iconColor: const Color(0xFF7DD3FC),
                 ),
                 WeatherStatChip(
                   icon: Icons.air_rounded,
                   label: 'Kecepatan Angin',
                   value: '${current.windSpeed} km/j',
-                  iconColor: Colors.teal.shade600,
+                  iconColor: const Color(0xFF99F6E4),
                 ),
                 WeatherStatChip(
                   icon: Icons.umbrella_rounded,
@@ -298,70 +496,71 @@ class _HomeScreenState extends State<HomeScreen> {
                   value: daily.isNotEmpty
                       ? '${daily.first.precipitationProbability}%'
                       : '0%',
-                  iconColor: Colors.indigo.shade600,
+                  iconColor: const Color(0xFFA5B4FC),
                 ),
                 WeatherStatChip(
                   icon: Icons.grain_rounded,
                   label: 'Curah Hujan',
                   value: '${current.precipitation} mm',
-                  iconColor: Colors.lightBlue.shade600,
+                  iconColor: const Color(0xFFBAE6FD),
                 ),
                 WeatherStatChip(
                   icon: Icons.thermostat_rounded,
                   label: 'Suhu Terasa',
                   value: '${current.apparentTemperature.round()}°C',
-                  iconColor: Colors.orange.shade600,
+                  iconColor: const Color(0xFFFCD34D),
                 ),
                 WeatherStatChip(
-                  icon: Icons.compress_rounded,
+                  icon: Icons.wb_twilight_rounded,
                   label: 'Kode Cuaca',
                   value: 'WMO ${current.weatherCode}',
-                  iconColor: Colors.deepPurple.shade600,
+                  iconColor: const Color(0xFFFCA5A5),
                 ),
               ],
             ),
-
-            const SizedBox(height: 24),
-
-            // 7-Day Forecast Section (Perkiraan Harian)
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text(
-                  'Perkiraan Beberapa Hari ke Depan',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                    color: Color(0xFF0F172A),
-                  ),
-                ),
-                Text(
-                  '${daily.length} Hari',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.grey.shade600,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-
-            // Daily Forecast Cards List
-            ListView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: daily.length,
-              itemBuilder: (context, index) {
-                return DailyForecastCard(
-                  forecast: daily[index],
-                  isToday: index == 0,
-                );
-              },
-            ),
-
-            const SizedBox(height: 16),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _BottomActionIcon extends StatelessWidget {
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback onTap;
+
+  const _BottomActionIcon({
+    required this.icon,
+    required this.tooltip,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(18),
+        child: Tooltip(
+          message: tooltip,
+          child: Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: Colors.white.withAlpha(25),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: Colors.white.withAlpha(35),
+                width: 1,
+              ),
+            ),
+            child: Icon(
+              icon,
+              color: Colors.white,
+              size: 24,
+            ),
+          ),
         ),
       ),
     );

@@ -4,6 +4,8 @@ class DailyForecast {
   final double minTemperature;
   final int precipitationProbability;
   final int weatherCode;
+  final String? sunrise;
+  final String? sunset;
 
   DailyForecast({
     required this.dateString,
@@ -11,6 +13,8 @@ class DailyForecast {
     required this.minTemperature,
     required this.precipitationProbability,
     required this.weatherCode,
+    this.sunrise,
+    this.sunset,
   });
 
   static List<DailyForecast> fromJsonList(Map<String, dynamic> json) {
@@ -21,10 +25,12 @@ class DailyForecast {
         (json['temperature_2m_min'] as List<dynamic>?)?.cast<num>() ?? [];
     final precipProbs =
         (json['precipitation_probability_max'] as List<dynamic>?)
-            ?.cast<num>() ??
-        [];
+                ?.cast<num>() ??
+            [];
     final weatherCodes =
         (json['weather_code'] as List<dynamic>?)?.cast<num>() ?? [];
+    final sunrises = (json['sunrise'] as List<dynamic>?)?.cast<String>() ?? [];
+    final sunsets = (json['sunset'] as List<dynamic>?)?.cast<String>() ?? [];
 
     final List<DailyForecast> list = [];
     for (int i = 0; i < times.length; i++) {
@@ -39,6 +45,8 @@ class DailyForecast {
               i < precipProbs.length ? precipProbs[i].toInt() : 0,
           weatherCode:
               i < weatherCodes.length ? weatherCodes[i].toInt() : 0,
+          sunrise: i < sunrises.length ? sunrises[i] : null,
+          sunset: i < sunsets.length ? sunsets[i] : null,
         ),
       );
     }

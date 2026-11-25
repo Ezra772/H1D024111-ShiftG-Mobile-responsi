@@ -1,13 +1,20 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../models/location_model.dart';
 import '../../viewmodels/search_viewmodel.dart';
 import '../../viewmodels/weather_viewmodel.dart';
 import '../widgets/empty_state_view.dart';
 import '../widgets/error_state_view.dart';
+import '../widgets/glass_card.dart';
 
 class SearchScreen extends StatefulWidget {
-  const SearchScreen({super.key});
+  final bool autofocusSearch;
+
+  const SearchScreen({
+    super.key,
+    this.autofocusSearch = true,
+  });
 
   @override
   State<SearchScreen> createState() => _SearchScreenState();
@@ -37,52 +44,121 @@ class _SearchScreenState extends State<SearchScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<SearchViewModel>(
-      builder: (context, vm, child) {
-        return Scaffold(
-          appBar: AppBar(
-            title: TextField(
-              controller: _searchController,
-              autofocus: true,
-              textInputAction: TextInputAction.search,
-              decoration: InputDecoration(
-                hintText: 'Cari nama kota (misal: Bandung, Tokyo)...',
-                hintStyle: TextStyle(fontSize: 14, color: Colors.grey.shade400),
-                prefixIcon: const Icon(Icons.search_rounded),
-                suffixIcon: _searchController.text.isNotEmpty
-                    ? IconButton(
-                        icon: const Icon(Icons.close_rounded, size: 20),
-                        onPressed: () {
-                          _searchController.clear();
-                          vm.onQueryChanged('');
-                        },
-                      )
-                    : null,
-                contentPadding: const EdgeInsets.symmetric(vertical: 10),
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle.light,
+      child: Consumer<SearchViewModel>(
+        builder: (context, vm, child) {
+          return Scaffold(
+            body: Container(
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Color(0xFF285F8A),
+                    Color(0xFF224B6B),
+                    Color(0xFF17354D),
+                  ],
+                ),
               ),
-              onChanged: vm.onQueryChanged,
-              onSubmitted: (query) => vm.search(query),
+              child: SafeArea(
+                child: Column(
+                  children: [
+                    // Top Glassmorphic Search Bar
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(12, 12, 16, 8),
+                      child: Row(
+                        children: [
+                          IconButton(
+                            icon: const Icon(
+                              Icons.arrow_back_ios_new_rounded,
+                              color: Colors.white,
+                              size: 20,
+                            ),
+                            onPressed: () => Navigator.pop(context),
+                          ),
+                          Expanded(
+                            child: GlassCard(
+                              borderRadius: 18,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 2,
+                              ),
+                              tintColor: Colors.white.withAlpha(32),
+                              child: TextField(
+                                controller: _searchController,
+                                autofocus: widget.autofocusSearch,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 15,
+                                ),
+                                cursorColor: Colors.white,
+                                textInputAction: TextInputAction.search,
+                                decoration: InputDecoration(
+                                  filled: false,
+                                  border: InputBorder.none,
+                                  enabledBorder: InputBorder.none,
+                                  focusedBorder: InputBorder.none,
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    vertical: 12,
+                                  ),
+                                  hintText:
+                                      'Cari kota (misal: Bandung, Tokyo)...',
+                                  hintStyle: TextStyle(
+                                    fontSize: 14,
+                                    color: Colors.white.withAlpha(160),
+                                  ),
+                                  prefixIcon: Icon(
+                                    Icons.search_rounded,
+                                    color: Colors.white.withAlpha(200),
+                                  ),
+                                  suffixIcon: _searchController.text.isNotEmpty
+                                      ? IconButton(
+                                          icon: const Icon(
+                                            Icons.close_rounded,
+                                            size: 20,
+                                            color: Colors.white,
+                                          ),
+                                          onPressed: () {
+                                            _searchController.clear();
+                                            vm.onQueryChanged('');
+                                          },
+                                        )
+                                      : null,
+                                ),
+                                onChanged: vm.onQueryChanged,
+                                onSubmitted: (query) => vm.search(query),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    // Body Content
+                    Expanded(child: _buildBody(vm)),
+                  ],
+                ),
+              ),
             ),
-          ),
-          body: _buildBody(vm),
-        );
-      },
+          );
+        },
+      ),
     );
   }
 
   Widget _buildBody(SearchViewModel vm) {
-    // If user is actively searching
     if (vm.state == SearchViewState.searching) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const CircularProgressIndicator(),
+            const CircularProgressIndicator(color: Colors.white),
             const SizedBox(height: 16),
             Text(
               'Mencari lokasi "${vm.currentQuery}"...',
               style: TextStyle(
-                color: Colors.grey.shade600,
+                color: Colors.white.withAlpha(210),
                 fontSize: 14,
               ),
             ),
@@ -102,30 +178,34 @@ class _SearchScreenState extends State<SearchScreen> {
       return EmptyStateView(
         icon: Icons.location_off_rounded,
         title: 'Lokasi Tidak Ditemukan',
-        message: 'Tidak ada hasil untuk "${vm.currentQuery}". Coba periksa ejaan nama kota.',
+        message:
+            'Tidak ada hasil untuk "${vm.currentQuery}". Coba periksa ejaan nama kota.',
       );
     }
 
     if (vm.state == SearchViewState.success) {
       return ListView.builder(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         itemCount: vm.searchResults.length,
         itemBuilder: (context, index) {
           final loc = vm.searchResults[index];
           final isFav = vm.isFavorite(loc.id);
 
-          return Card(
-            margin: const EdgeInsets.only(bottom: 8),
+          return GlassCard(
+            borderRadius: 18,
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+            margin: const EdgeInsets.only(bottom: 10),
             child: ListTile(
               leading: Container(
-                padding: const EdgeInsets.all(8),
+                padding: const EdgeInsets.all(9),
                 decoration: BoxDecoration(
-                  color: Colors.blue.shade50,
+                  color: Colors.white.withAlpha(30),
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(
                   Icons.location_city_rounded,
-                  color: Color(0xFF1E88E5),
+                  color: Colors.white,
+                  size: 20,
                 ),
               ),
               title: Text(
@@ -133,17 +213,25 @@ class _SearchScreenState extends State<SearchScreen> {
                 style: const TextStyle(
                   fontWeight: FontWeight.w700,
                   fontSize: 16,
+                  color: Colors.white,
                 ),
               ),
               subtitle: Text(
                 loc.displayName,
-                style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                style: TextStyle(
+                  fontSize: 12.5,
+                  color: Colors.white.withAlpha(180),
+                ),
               ),
               trailing: IconButton(
                 tooltip: isFav ? 'Hapus dari Favorit' : 'Tambah ke Favorit',
                 icon: Icon(
-                  isFav ? Icons.favorite_rounded : Icons.favorite_border_rounded,
-                  color: isFav ? Colors.redAccent : Colors.grey.shade400,
+                  isFav
+                      ? Icons.favorite_rounded
+                      : Icons.favorite_border_rounded,
+                  color: isFav
+                      ? const Color(0xFFFF6B6B)
+                      : Colors.white.withAlpha(180),
                 ),
                 onPressed: () => vm.toggleFavorite(loc),
               ),
@@ -154,8 +242,9 @@ class _SearchScreenState extends State<SearchScreen> {
       );
     }
 
-    // Default Idle State: show Favorites and Recent Searches
+    // Idle State: Favorites & Recent Searches
     return SingleChildScrollView(
+      physics: const BouncingScrollPhysics(),
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -164,16 +253,20 @@ class _SearchScreenState extends State<SearchScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Row(
+              const Row(
                 children: [
-                  const Icon(Icons.favorite_rounded, color: Colors.redAccent, size: 20),
-                  const SizedBox(width: 8),
-                  const Text(
+                  Icon(
+                    Icons.favorite_rounded,
+                    color: Color(0xFFFF6B6B),
+                    size: 20,
+                  ),
+                  SizedBox(width: 8),
+                  Text(
                     'Lokasi Favorit',
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w700,
-                      color: Color(0xFF0F172A),
+                      color: Colors.white,
                     ),
                   ),
                 ],
@@ -181,8 +274,8 @@ class _SearchScreenState extends State<SearchScreen> {
               Text(
                 '${vm.favorites.length} Lokasi',
                 style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.grey.shade600,
+                  fontSize: 12.5,
+                  color: Colors.white.withAlpha(180),
                   fontWeight: FontWeight.w500,
                 ),
               ),
@@ -191,24 +284,22 @@ class _SearchScreenState extends State<SearchScreen> {
           const SizedBox(height: 10),
 
           if (vm.favorites.isEmpty)
-            Container(
-              width: double.infinity,
+            GlassCard(
+              borderRadius: 18,
               padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.grey.shade200),
-              ),
               child: Row(
                 children: [
-                  Icon(Icons.info_outline_rounded, color: Colors.grey.shade400),
+                  Icon(
+                    Icons.info_outline_rounded,
+                    color: Colors.white.withAlpha(180),
+                  ),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(
                       'Belum ada lokasi favorit. Tekan ikon hati pada kota untuk menyimpannya.',
                       style: TextStyle(
                         fontSize: 13,
-                        color: Colors.grey.shade600,
+                        color: Colors.white.withAlpha(195),
                       ),
                     ),
                   ),
@@ -222,18 +313,23 @@ class _SearchScreenState extends State<SearchScreen> {
               itemCount: vm.favorites.length,
               itemBuilder: (context, index) {
                 final loc = vm.favorites[index];
-                return Card(
-                  margin: const EdgeInsets.only(bottom: 8),
+                return GlassCard(
+                  borderRadius: 18,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 4,
+                  ),
+                  margin: const EdgeInsets.only(bottom: 10),
                   child: ListTile(
                     leading: Container(
-                      padding: const EdgeInsets.all(8),
+                      padding: const EdgeInsets.all(9),
                       decoration: BoxDecoration(
-                        color: Colors.red.shade50,
+                        color: const Color(0xFFFF6B6B).withAlpha(45),
                         shape: BoxShape.circle,
                       ),
                       child: const Icon(
                         Icons.favorite_rounded,
-                        color: Colors.redAccent,
+                        color: Color(0xFFFF6B6B),
                         size: 20,
                       ),
                     ),
@@ -241,15 +337,23 @@ class _SearchScreenState extends State<SearchScreen> {
                       loc.name,
                       style: const TextStyle(
                         fontWeight: FontWeight.w700,
-                        fontSize: 15,
+                        fontSize: 15.5,
+                        color: Colors.white,
                       ),
                     ),
                     subtitle: Text(
                       loc.displayName,
-                      style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        color: Colors.white.withAlpha(180),
+                      ),
                     ),
                     trailing: IconButton(
-                      icon: const Icon(Icons.close_rounded, size: 20),
+                      icon: Icon(
+                        Icons.close_rounded,
+                        size: 20,
+                        color: Colors.white.withAlpha(185),
+                      ),
                       tooltip: 'Hapus Favorit',
                       onPressed: () => vm.toggleFavorite(loc),
                     ),
@@ -266,16 +370,20 @@ class _SearchScreenState extends State<SearchScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Row(
+                const Row(
                   children: [
-                    const Icon(Icons.history_rounded, color: Color(0xFF1E88E5), size: 20),
-                    const SizedBox(width: 8),
-                    const Text(
+                    Icon(
+                      Icons.history_rounded,
+                      color: Color(0xFF7DD3FC),
+                      size: 20,
+                    ),
+                    SizedBox(width: 8),
+                    Text(
                       'Riwayat Pencarian',
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w700,
-                        color: Color(0xFF0F172A),
+                        color: Colors.white,
                       ),
                     ),
                   ],
@@ -284,7 +392,11 @@ class _SearchScreenState extends State<SearchScreen> {
                   onPressed: () => vm.clearRecentSearches(),
                   child: const Text(
                     'Hapus Semua',
-                    style: TextStyle(fontSize: 12, color: Colors.redAccent),
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      color: Color(0xFFFCA5A5),
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
               ],
@@ -296,18 +408,23 @@ class _SearchScreenState extends State<SearchScreen> {
               itemCount: vm.recentSearches.length,
               itemBuilder: (context, index) {
                 final loc = vm.recentSearches[index];
-                return Card(
-                  margin: const EdgeInsets.only(bottom: 8),
+                return GlassCard(
+                  borderRadius: 18,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 4,
+                  ),
+                  margin: const EdgeInsets.only(bottom: 10),
                   child: ListTile(
                     leading: Container(
-                      padding: const EdgeInsets.all(8),
+                      padding: const EdgeInsets.all(9),
                       decoration: BoxDecoration(
-                        color: Colors.grey.shade100,
+                        color: Colors.white.withAlpha(25),
                         shape: BoxShape.circle,
                       ),
-                      child: const Icon(
+                      child: Icon(
                         Icons.history_rounded,
-                        color: Colors.grey,
+                        color: Colors.white.withAlpha(200),
                         size: 20,
                       ),
                     ),
@@ -315,17 +432,21 @@ class _SearchScreenState extends State<SearchScreen> {
                       loc.name,
                       style: const TextStyle(
                         fontWeight: FontWeight.w600,
-                        fontSize: 15,
+                        fontSize: 15.5,
+                        color: Colors.white,
                       ),
                     ),
                     subtitle: Text(
                       loc.displayName,
-                      style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        color: Colors.white.withAlpha(180),
+                      ),
                     ),
-                    trailing: const Icon(
+                    trailing: Icon(
                       Icons.arrow_forward_ios_rounded,
                       size: 14,
-                      color: Colors.grey,
+                      color: Colors.white.withAlpha(160),
                     ),
                     onTap: () => _selectLocation(loc),
                   ),
